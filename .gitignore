@@ -1,0 +1,122 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Environment variables & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+*.id_rsa
+
+# Local databases & evidence
+*.db
+*.sqlite
+*.sqlite3
+data/evidence/*
+!data/evidence/.gitkeep
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# IDE & Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+# ESP-IDF generated files
+esp32/build/
+esp32/sdkconfig
+esp32/sdkconfig.old
+esp32/managed_components/
+
+# Compiled firmware artifacts
+*.elf
+*.bin
+*.map
+*.o
+*.a
+
+# Local secrets
+.env.*
+!.env.example
+# ARES local data and secrets
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+
+# Python virtual environments
+venv/
+.venv/
+env/
+
+# ESP-IDF generated files
+esp32/build/
+esp32/sdkconfig
+esp32/sdkconfig.old
+esp32/managed_components/
+
+# Compiled firmware
+*.elf
+*.bin
+*.map
+*.o
+*.a
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Nested Python environments
+**/.venv/

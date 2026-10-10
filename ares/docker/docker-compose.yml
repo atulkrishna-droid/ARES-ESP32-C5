@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ares-postgres
+    environment:
+      POSTGRES_USER: ares_user
+      POSTGRES_PASSWORD: ares_secure_password
+      POSTGRES_DB: ares_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ares-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ares_user -d ares_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ares-redis
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: ares/docker/Dockerfile
+    container_name: ares-backend
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://ares_user:ares_secure_password@postgres:5432/ares_db
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: super-secret-ares-cryptographic-signing-key-change-in-production-min-32-chars
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ares-evidence-data:/app/data/evidence
+
+volumes:
+  ares-postgres-data:
+  ares-evidence-data:

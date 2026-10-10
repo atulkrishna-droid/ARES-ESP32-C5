@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">ARES Agent</string>
+    <string name="status_unregistered">Unregistered</string>
+    <string name="status_authenticating">Authenticating…</string>
+    <string name="status_ready">Ready (Authorized)</string>
+    <string name="status_busy">Executing Assessment…</string>
+    <string name="status_error">Error</string>
+    <string name="status_revoked">Device Revoked</string>
+    <string name="channel_name">ARES Assessment Service</string>
+    <string name="channel_description">Active assessment and telemetry status</string>
+</resources>
