@@ -48,6 +48,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         lifecycleScope.launch {
+            viewModel.identityError.collectLatest { error ->
+                if (error != null) tvDeviceId.text = error
+            }
+        }
+
+        lifecycleScope.launch {
             viewModel.agentState.collectLatest { state ->
                 tvState.text = "Status: ${state.name}"
                 btnRunAssessment.isEnabled = state.canExecuteAssessment

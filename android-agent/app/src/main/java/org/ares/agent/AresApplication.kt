@@ -11,6 +11,7 @@ import org.ares.agent.domain.engine.SecurityPostureEngine
 import org.ares.agent.security.DeviceIdentityManager
 import org.ares.agent.security.KeystoreManager
 import org.ares.agent.security.RedactingLogger
+import org.ares.agent.security.SharedPreferencesIdentityStore
 import org.ares.agent.transport.AresTransport
 import org.ares.agent.transport.HttpTransport
 
@@ -29,7 +30,14 @@ class AresApplication : Application() {
     }
 
     val keystoreManager by lazy { KeystoreManager() }
-    val identityManager by lazy { DeviceIdentityManager(keystoreManager) }
+    val identityManager by lazy {
+        DeviceIdentityManager(
+            keystoreManager = keystoreManager,
+            persistentStore = SharedPreferencesIdentityStore(
+                getSharedPreferences("ares_identity", Context.MODE_PRIVATE)
+            )
+        )
+    }
     val capabilityDiscoverer by lazy { CapabilityDiscoverer(this) }
     val inventoryScanner by lazy { ApplicationInventoryScanner(this) }
     val postureEngine by lazy { SecurityPostureEngine() }

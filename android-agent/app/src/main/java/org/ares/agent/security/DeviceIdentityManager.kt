@@ -1,5 +1,6 @@
 package org.ares.agent.security
 
+import android.content.SharedPreferences
 import org.ares.agent.domain.model.DeviceIdentity
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
@@ -18,7 +19,8 @@ import java.util.UUID
  */
 class DeviceIdentityManager(
     private val keystoreManager: KeystoreManager = KeystoreManager(),
-    private val memoryStore: MutableMap<String, String> = mutableMapOf()
+    private val memoryStore: MutableMap<String, String> = mutableMapOf(),
+    private val persistentStore: DeviceIdentityStore? = null
 ) {
     companion object {
         private const val KEY_DEVICE_ID = "ares_device_id"
@@ -32,9 +34,15 @@ class DeviceIdentityManager(
      * Get or generate the persistent ARES device identity.
      */
     fun getOrCreateIdentity(): DeviceIdentity {
-        var deviceId = memoryStore[KEY_DEVICE_ID]
-        var enrollmentId = memoryStore[KEY_ENROLLMENT_ID]
-        var enrolledAt = memoryStore[KEY_ENROLLED_AT]
+        var deviceId = get(KEY_DEVICE_ID)
+        var enrollmentId = get(KEY_ENROLLMENT_ID)
+        var enrolledAt = get(KEY_ENROLLED_AT)
+
+        if (deviceId != null && !deviceId.startsWith("ares-android-")) {
+            // Preserve a legacy identity and stop. Replacing it automatically could
+            // create a second backend record and falsely imply that it was enrolled.
+            throw LegacyDeviceIdentityException(deviceId)
+        }
 
         if (deviceId == null) {
             val randomBytes = ByteArray(4)
@@ -44,40 +52,51 @@ class DeviceIdentityManager(
             enrollmentId = UUID.randomUUID().toString()
             enrolledAt = getCurrentIsoTimestamp()
 
-            memoryStore[KEY_DEVICE_ID] = deviceId
-            memoryStore[KEY_ENROLLMENT_ID] = enrollmentId
-            memoryStore[KEY_ENROLLED_AT] = enrolledAt
+            put(KEY_DEVICE_ID, deviceId)
+            put(KEY_ENROLLMENT_ID, enrollmentId)
+            put(KEY_ENROLLED_AT, enrolledAt)
             RedactingLogger.i("DeviceIdentityManager", "Generated fresh identity: $deviceId")
         }
 
         return DeviceIdentity(
             deviceId = deviceId,
             enrollmentId = enrollmentId ?: UUID.randomUUID().toString(),
-            publicKeyHex = keystoreManager.getPublicKeyRepresentation(),
             keyAlias = "ares_device_signing_key",
             enrolledAt = enrolledAt ?: getCurrentIsoTimestamp()
         )
     }
 
     fun isRevoked(): Boolean {
-        return memoryStore[KEY_REVOKED] == "true"
+        return get(KEY_REVOKED) == "true"
     }
 
     fun markRevoked(reason: String = "Operator Revocation") {
-        memoryStore[KEY_REVOKED] = "true"
+        put(KEY_REVOKED, "true")
         RedactingLogger.w("DeviceIdentityManager", "Device identity marked REVOKED: $reason")
     }
 
     fun setActiveCaseId(caseId: String?) {
         if (caseId != null) {
-            memoryStore[KEY_ACTIVE_CASE_ID] = caseId
+            put(KEY_ACTIVE_CASE_ID, caseId)
         } else {
-            memoryStore.remove(KEY_ACTIVE_CASE_ID)
+            remove(KEY_ACTIVE_CASE_ID)
         }
     }
 
     fun getActiveCaseId(): String? {
-        return memoryStore[KEY_ACTIVE_CASE_ID]
+        return get(KEY_ACTIVE_CASE_ID)
+    }
+
+    private fun get(key: String): String? = persistentStore?.get(key) ?: memoryStore[key]
+
+    private fun put(key: String, value: String) {
+        memoryStore[key] = value
+        persistentStore?.put(key, value)
+    }
+
+    private fun remove(key: String) {
+        memoryStore.remove(key)
+        persistentStore?.remove(key)
     }
 
     private fun getCurrentIsoTimestamp(): String {
@@ -86,3 +105,28 @@ class DeviceIdentityManager(
         return format.format(Date())
     }
 }
+
+interface DeviceIdentityStore {
+    fun get(key: String): String?
+    fun put(key: String, value: String)
+    fun remove(key: String)
+}
+
+class SharedPreferencesIdentityStore(private val preferences: SharedPreferences) : DeviceIdentityStore {
+    override fun get(key: String): String? = preferences.getString(key, null)
+
+    override fun put(key: String, value: String) {
+        check(preferences.edit().putString(key, value).commit()) {
+            "Could not persist the ARES device identity."
+        }
+    }
+
+    override fun remove(key: String) {
+        check(preferences.edit().remove(key).commit()) {
+            "Could not update persistent ARES identity state."
+        }
+    }
+}
+
+class LegacyDeviceIdentityException(val legacyDeviceId: String) :
+    IllegalStateException("Legacy device identity requires operator migration.")
