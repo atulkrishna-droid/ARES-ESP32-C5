@@ -17,10 +17,26 @@ class DeviceIdentityTest {
         assertTrue("Device ID must start with ares-android-", id1.deviceId.startsWith("ares-android-"))
         assertEquals(21, id1.deviceId.length) // "ares-android-" (13) + 8 hex chars = 21
 
-        // Verify persistence: second call yields identical device ID
-        val id2 = manager.getOrCreateIdentity()
+        // Reopening the manager against the same backing store models a process restart.
+        val id2 = DeviceIdentityManager(keystoreManager, memoryStore).getOrCreateIdentity()
         assertEquals(id1.deviceId, id2.deviceId)
         assertEquals(id1.enrollmentId, id2.enrollmentId)
+    }
+
+    @Test
+    fun legacyIdentityIsPreservedAndNeverSilentlyReplaced() {
+        val store = mutableMapOf("ares_device_id" to "android-bd4d600d")
+        val manager = DeviceIdentityManager(KeystoreManager(), store)
+
+        try {
+            manager.getOrCreateIdentity()
+            fail("Legacy identity must require an explicit migration decision")
+        } catch (expected: org.ares.agent.security.LegacyDeviceIdentityException) {
+            assertEquals("android-bd4d600d", expected.legacyDeviceId)
+        }
+
+        assertEquals("android-bd4d600d", store["ares_device_id"])
+        assertEquals(1, store.size)
     }
 
     @Test

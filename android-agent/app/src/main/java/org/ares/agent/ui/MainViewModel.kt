@@ -12,6 +12,7 @@ import org.ares.agent.domain.model.DeviceCapabilities
 import org.ares.agent.domain.model.DeviceIdentity
 import org.ares.agent.domain.model.SecurityFinding
 import org.ares.agent.service.AresAgentService
+import org.ares.agent.security.LegacyDeviceIdentityException
 
 /**
  * Main Activity ViewModel.
@@ -28,6 +29,9 @@ class MainViewModel : ViewModel() {
     private val _identity = MutableStateFlow<DeviceIdentity?>(null)
     val identity: StateFlow<DeviceIdentity?> = _identity.asStateFlow()
 
+    private val _identityError = MutableStateFlow<String?>(null)
+    val identityError: StateFlow<String?> = _identityError.asStateFlow()
+
     private val _capabilities = MutableStateFlow<DeviceCapabilities?>(null)
     val capabilities: StateFlow<DeviceCapabilities?> = _capabilities.asStateFlow()
 
@@ -37,8 +41,17 @@ class MainViewModel : ViewModel() {
 
     fun loadDeviceData() {
         viewModelScope.launch {
-            _identity.value = app.identityManager.getOrCreateIdentity()
-            _capabilities.value = app.capabilityDiscoverer.discoverCapabilities()
+            try {
+                _identity.value = app.identityManager.getOrCreateIdentity()
+                _identityError.value = null
+                _capabilities.value = app.capabilityDiscoverer.discoverCapabilities()
+            } catch (legacy: LegacyDeviceIdentityException) {
+                _identity.value = null
+                _identityError.value = "Legacy device identity requires operator review. No replacement was created."
+            } catch (_: Exception) {
+                _identity.value = null
+                _identityError.value = "Device identity could not be loaded or saved. No handshake was sent."
+            }
         }
     }
 

@@ -65,11 +65,23 @@ class ProtocolEnvelopeTest {
         val res = validator.validate(signedEnv, verifySignature = true)
         assertTrue(res is ValidationResult.Valid)
 
-        // Corrupted signature rejection
-        val badEnv = signedEnv.copy(signature = sig.reversed())
+        // Invalid signatures must be rejected before consuming their sequence.
+        val sequenceThree = env.copy(sequence = 3)
+        val badEnv = sequenceThree.copy(signature = sig.reversed())
         val badRes = validator.validate(badEnv, verifySignature = true)
-        assertTrue(badRes is ValidationResult.Invalid)
         assertEquals("INVALID_SIGNATURE", (badRes as ValidationResult.Invalid).code)
+
+        val validSequenceThree = sequenceThree.copy(
+            signature = keystore.sign(sequenceThree.canonicalBytes())
+        )
+        assertTrue(validator.validate(validSequenceThree, verifySignature = true) is ValidationResult.Valid)
+        val replay = validator.validate(validSequenceThree, verifySignature = true)
+        assertEquals("INVALID_SEQUENCE", (replay as ValidationResult.Invalid).code)
+
+        // Payload tampering is detected as a signature failure before replay checks.
+        val tamperedPayload = validSequenceThree.copy(payload = mapOf("model" to "Other"))
+        val tamperResult = validator.validate(tamperedPayload, verifySignature = true)
+        assertEquals("INVALID_SIGNATURE", (tamperResult as ValidationResult.Invalid).code)
     }
 
     @Test

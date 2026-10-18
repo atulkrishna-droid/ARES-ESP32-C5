@@ -50,17 +50,20 @@ class ProtocolValidator(
             return skewValidation
         }
 
-        // 5. Sequence Replay Check
-        if (!sequenceTracker.validateAndRecordInbound(envelope.sequence)) {
-            return ValidationResult.Invalid("INVALID_SEQUENCE", "Replayed or out-of-order sequence number: ${envelope.sequence} <= ${sequenceTracker.getLastInboundSequence()}")
-        }
-
-        // 6. Cryptographic Signature
-        if (verifySignature && keystoreManager != null && envelope.signature != "UNSIGNED") {
-            val canonicalBytes = envelope.canonicalBytes()
-            if (!keystoreManager.verify(canonicalBytes, envelope.signature)) {
+        // Verify authenticity before touching replay state. Otherwise an unauthenticated
+        // message can consume a valid sequence number and deny service to the real peer.
+        if (verifySignature) {
+            if (keystoreManager == null || envelope.signature.isBlank() || envelope.signature == "UNSIGNED") {
+                return ValidationResult.Invalid("INVALID_SIGNATURE", "A signed message and verifier are required.")
+            }
+            if (!keystoreManager.verify(envelope.canonicalBytes(), envelope.signature)) {
                 return ValidationResult.Invalid("INVALID_SIGNATURE", "HMAC-SHA256 signature verification failed.")
             }
+        }
+
+        // Replay state changes only after structural, timestamp, and signature checks pass.
+        if (!sequenceTracker.validateAndRecordInbound(envelope.sequence)) {
+            return ValidationResult.Invalid("INVALID_SEQUENCE", "Replayed or out-of-order sequence number: ${envelope.sequence} <= ${sequenceTracker.getLastInboundSequence()}")
         }
 
         return ValidationResult.Valid

@@ -1,11 +1,12 @@
 package org.ares.agent.security
 
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import java.security.KeyStore
 import java.security.MessageDigest
 import javax.crypto.KeyGenerator
 import javax.crypto.Mac
 import javax.crypto.SecretKey
-import javax.crypto.spec.SecretKeySpec
 
 /**
  * Android Keystore & Cryptographic Signature Provider.
@@ -37,18 +38,21 @@ class KeystoreManager(
                 val keyStore = KeyStore.getInstance("AndroidKeyStore")
                 keyStore.load(null)
                 if (!keyStore.containsAlias(keyAlias)) {
-                    // In real Android runtime, KeyProtection / KeyGenParameterSpec is used
-                    // Here we initialize with standard Java crypto if KeyGenParameterSpec not on classpath (e.g. Unit tests)
-                    val keyGen = KeyGenerator.getInstance("HmacSHA256")
-                    keyGen.init(256)
-                    val secret = keyGen.generateKey()
-                    softwareFallbackKey = secret
+                    val keyGen = KeyGenerator.getInstance("HmacSHA256", "AndroidKeyStore")
+                    keyGen.init(
+                        KeyGenParameterSpec.Builder(
+                            keyAlias,
+                            KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
+                        ).setKeySize(256).build()
+                    )
+                    keyGen.generateKey()
                 }
             } catch (e: Exception) {
-                RedactingLogger.w("KeystoreManager", "AndroidKeyStore initialization fallback: ${e.message}")
-                generateSoftwareKey()
+                RedactingLogger.e("KeystoreManager", "AndroidKeyStore key initialization failed: ${e.message}")
+                throw IllegalStateException("Secure Android signing key is unavailable.", e)
             }
         } else {
+            // JVM-only fallback for local unit tests. Real Android runtime fails closed above.
             generateSoftwareKey()
         }
     }
@@ -83,24 +87,13 @@ class KeystoreManager(
         )
     }
 
-    /**
-     * Export raw public identifier / public key representation (for registration).
-     */
-    fun getPublicKeyRepresentation(): String {
-        val key = getSecretKey()
-        val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(key.encoded ?: keyAlias.toByteArray(Charsets.UTF_8))
-        return hash.joinToString("") { "%02x".format(it) }
-    }
-
-    /**
-     * Manually configure pre-shared secret key (e.g. during enrollment handshake).
-     */
-    fun setPresharedKey(secretBytes: ByteArray) {
-        softwareFallbackKey = SecretKeySpec(secretBytes, "HmacSHA256")
-    }
-
     private fun getSecretKey(): SecretKey {
+        if (isAndroidKeystoreAvailable) {
+            val keyStore = KeyStore.getInstance("AndroidKeyStore")
+            keyStore.load(null)
+            return keyStore.getKey(keyAlias, null) as? SecretKey
+                ?: throw IllegalStateException("Secure Android signing key is unavailable.")
+        }
         return softwareFallbackKey ?: run {
             generateSoftwareKey()
             softwareFallbackKey!!
